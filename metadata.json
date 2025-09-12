@@ -1,0 +1,5 @@
+{
+  "name": "퇴직연금 DC플랜",
+  "description": "An AI-powered simulator to help plan for retirement with a Korean DC pension account, featuring portfolio recommendations and growth projections that adhere to investment regulations.",
+  "requestFramePermissions": []
+}

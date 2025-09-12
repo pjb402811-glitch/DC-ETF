@@ -1,0 +1,15 @@
+export const categoryColorMap: { [key: string]: string } = {
+    "국내 주식": "blue",
+    "해외 주식": "green",
+    "국내 채권": "indigo",
+    "해외 채권": "purple",
+    "자산배분(TDF/TRF)": "teal",
+    "단기 금융": "gray",
+    "배당주": "red",
+    "커버드콜": "pink",
+    "섹터": "lime",
+    "테마": "yellow",
+    "부동산/인프라": "orange",
+    "원자재": "yellow",
+    "기타 고배당": "red",
+};
