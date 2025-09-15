@@ -13,14 +13,22 @@ interface EtfEditModalProps {
     categories: string[];
 }
 
+interface Source {
+    uri: string;
+    title: string;
+}
+
 const EtfEditModal: React.FC<EtfEditModalProps> = ({ etf, apiKey, onSave, onClose, existingTickers, categories }) => {
     const isNew = etf === null;
     const [formData, setFormData] = useState<Partial<Etf>>({});
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [sources, setSources] = useState<Source[] | null>(null);
 
     useEffect(() => {
         setFormData(isNew ? { risk: '중립', yield: 0, growth: 0 } : { ...etf });
+        setError(null);
+        setSources(null);
     }, [etf, isNew]);
 
     const handleChange = (field: keyof Etf, value: string | number) => {
@@ -41,20 +49,28 @@ const EtfEditModal: React.FC<EtfEditModalProps> = ({ etf, apiKey, onSave, onClos
             setError("AI 자동 완성을 사용하려면 API Key가 필요합니다.");
             return;
         }
-        if (!formData.ticker || !formData.name) {
-            setError("AI 자동 완성을 위해 티커와 ETF 이름은 직접 입력해야 합니다.");
+        if (!formData.ticker && !formData.name) {
+            setError("AI 자동 완성을 위해 종목코드 또는 ETF 이름 중 하나는 입력해야 합니다.");
             return;
         }
 
         setIsLoading(true);
         setError(null);
+        setSources(null);
         try {
-            const info = await generateEtfInfo(apiKey, formData.ticker, formData.name);
-            if (info) {
+            const result = await generateEtfInfo(apiKey, formData.ticker, formData.name);
+            if (result) {
+                 const { etfInfo, sources: newSources } = result;
+                 if (isNew && etfInfo.ticker && existingTickers.includes(etfInfo.ticker)) {
+                    setError(`이미 존재하는 티커입니다: ${etfInfo.ticker} (${etfInfo.name})`);
+                    setIsLoading(false);
+                    return;
+                }
                 setFormData(prev => ({
                     ...prev,
-                    ...info,
+                    ...etfInfo,
                 }));
+                setSources(newSources);
             } else {
                 setError("AI로부터 유효한 정보를 받지 못했습니다.");
             }
@@ -63,7 +79,7 @@ const EtfEditModal: React.FC<EtfEditModalProps> = ({ etf, apiKey, onSave, onClos
         } finally {
             setIsLoading(false);
         }
-    }, [apiKey, formData.ticker, formData.name]);
+    }, [apiKey, formData.ticker, formData.name, isNew, existingTickers]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -117,7 +133,7 @@ const EtfEditModal: React.FC<EtfEditModalProps> = ({ etf, apiKey, onSave, onClos
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">티커 (Ticker)</label>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">종목코드</label>
                             <input type="text" value={formData.ticker || ''} onChange={e => handleChange('ticker', e.target.value)} disabled={!isNew} className="w-full bg-gray-700 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-600" />
                         </div>
                         <div>
@@ -132,6 +148,22 @@ const EtfEditModal: React.FC<EtfEditModalProps> = ({ etf, apiKey, onSave, onClos
                         </button>
                         {!apiKey && <p className="text-xs text-gray-500 mt-2">API Key가 설정되지 않아 AI 자동 완성을 사용할 수 없습니다.</p>}
                     </div>
+
+                    {sources && sources.length > 0 && (
+                        <div className="my-4 bg-gray-900/50 p-3 rounded-lg text-left">
+                            <h4 className="text-sm font-semibold text-gray-400 mb-2">AI가 참고한 정보 출처:</h4>
+                            <ul className="space-y-1 text-xs max-h-24 overflow-y-auto">
+                                {sources.map((source, index) => (
+                                    <li key={index} className="flex items-start">
+                                        <span className="text-blue-400 mr-2 flex-shrink-0">•</span>
+                                        <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all" title={source.uri}>
+                                            {source.title || source.uri}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                     
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">설명</label>

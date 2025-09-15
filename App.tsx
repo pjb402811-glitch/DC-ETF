@@ -26,50 +26,11 @@ type ConfirmState = {
     onConfirm: () => void;
 } | null;
 
-interface WelcomeModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-}
-
-const WelcomeModal: React.FC<WelcomeModalProps> = ({ isOpen, onClose }) => {
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
-            <div className="bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8 w-full max-w-lg text-center border border-gray-700">
-                <h3 className="text-2xl font-bold text-white mb-4">🎉 퇴직연금 DC플랜에 오신 것을 환영합니다!</h3>
-                <p className="text-gray-300 mb-6 leading-relaxed">
-                    이 앱의 핵심 기능인 AI 포트폴리오 시뮬레이션을 사용하려면 <br/>
-                    <span className="font-bold text-amber-400">Google AI API Key</span>가 필요합니다.
-                </p>
-                <div className="bg-gray-900/50 p-4 rounded-lg mb-6 text-left">
-                    <p className="text-gray-300">
-                        우측 상단의 <span className="inline-flex items-center justify-center bg-gray-700 rounded-md p-1 mx-1 align-middle">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-                            </svg>
-                        </span>
-                        아이콘을 클릭하여 API Key를 설정해주세요.
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2">API Key는 브라우저에만 안전하게 저장됩니다.</p>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                    확인하고 시작하기
-                </button>
-            </div>
-        </div>
-    );
-};
-
 const App: React.FC = () => {
     // Main App State
     const [activeTab, setActiveTab] = useState<'simulator' | 'tracker'>('simulator');
     const [apiKey, setApiKey] = useState<string | null>(null);
     const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
-    const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
     
     // Data State
     const [etfData, setEtfData] = useState<Record<string, Etf>>(ALL_ETFS);
@@ -91,7 +52,9 @@ const App: React.FC = () => {
     useEffect(() => {
         try {
             const savedApiKey = localStorage.getItem('geminiApiKey');
-            if (savedApiKey) setApiKey(savedApiKey);
+            if (savedApiKey) {
+                setApiKey(savedApiKey);
+            }
 
             const savedEtfs = localStorage.getItem('etfData');
             if (savedEtfs) setEtfData(JSON.parse(savedEtfs));
@@ -101,7 +64,10 @@ const App: React.FC = () => {
 
             const hasVisited = localStorage.getItem('hasVisited');
             if (!hasVisited) {
-                setIsWelcomeModalOpen(true);
+                if (!savedApiKey) {
+                    setIsApiKeyModalOpen(true);
+                }
+                localStorage.setItem('hasVisited', 'true');
             }
         } catch (error) {
             console.error("Failed to load data from localStorage", error);
@@ -119,14 +85,6 @@ const App: React.FC = () => {
             showAlert('저장 오류', '데이터를 로컬에 저장하는 데 실패했습니다.');
         }
     }, []);
-
-    const handleCloseWelcomeModal = () => {
-        setIsWelcomeModalOpen(false);
-        localStorage.setItem('hasVisited', 'true');
-        if (!apiKey) {
-            setIsApiKeyModalOpen(true);
-        }
-    };
     
     const handleSaveApiKey = (newKey: string) => {
         setApiKey(newKey);
@@ -361,7 +319,6 @@ const App: React.FC = () => {
             {alertState && <AlertModal {...alertState} onClose={() => setAlertState(null)} />}
             {confirmState && <ConfirmModal {...confirmState} onClose={() => setConfirmState(null)} onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }} />}
             <ApiKeyModal isOpen={isApiKeyModalOpen} onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />
-            <WelcomeModal isOpen={isWelcomeModalOpen} onClose={handleCloseWelcomeModal} />
 
             <main className="container mx-auto px-4 py-8">
                 <Header onSettingsClick={() => setIsApiKeyModalOpen(true)} />

@@ -132,69 +132,88 @@ ${etfsToString(safeAssets)}
     }
 }
 
+export interface GeneratedEtfInfo {
+    etfInfo: Partial<Etf>;
+    sources: { uri: string; title: string }[];
+}
+
 export async function generateEtfInfo(
     apiKey: string,
-    ticker: string,
-    name: string
-): Promise<Partial<Etf> | null> {
+    ticker: string | undefined,
+    name: string | undefined,
+): Promise<GeneratedEtfInfo | null> {
      if (!apiKey) {
         throw new Error("API Key is not provided.");
     }
-    // Fix: Initialize GoogleGenAI with a named apiKey parameter
+    if (!ticker && !name) {
+        throw new Error("Ticker or Name must be provided for AI completion.");
+    }
     const ai = new GoogleGenAI({ apiKey });
 
-    const prompt = `You are a financial data analyst. Your task is to provide key information for a specific Korean ETF based on its ticker and name. Use your internal knowledge. Do not browse the web.
+    const analysisTarget = ticker ? `Ticker: ${ticker}` : `Name: ${name}`;
+
+    const prompt = `You are a financial data analyst. Use Google Search to find the most current and accurate information for a specific Korean ETF. Prioritize official sources like Naver Finance, asset management company websites (e.g., Mirae Asset, Samsung Asset Management), or the Korea Exchange (KRX).
 
 **ETF to Analyze:**
-- **Ticker**: ${ticker}
-- **Name**: ${name}
+- ${analysisTarget}
 
-**Required Information:**
-1.  **desc**: A concise, one-sentence description of the ETF in Korean.
-2.  **pros**: The main advantages or strengths of this ETF, in Korean.
-3.  **cons**: The main disadvantages, risks, or points to consider for this ETF, in Korean.
-4.  **yield**: The estimated annual dividend yield as a decimal (e.g., 0.035 for 3.5%).
-5.  **growth**: The estimated annual price growth rate as a decimal (e.g., 0.08 for 8%). This should represent long-term capital appreciation potential, separate from yield.
-6.  **risk**: The overall risk level, categorized as one of: '낮음', '중립', '높음'.
-7.  **category**: The most appropriate investment category for this ETF from the given list.
+**Instructions:**
+1.  Search the web for the requested ETF.
+2.  Extract the following information. If a value is not available, estimate it reasonably based on the ETF's sector and market context.
+3.  Format your entire response as a single, minified JSON object string. Do not include any text before or after the JSON object. Do not use markdown code blocks.
 
-Please provide the output in JSON format according to the schema.`;
+**Required JSON Fields:**
+- \`ticker\`: The official stock ticker.
+- \`name\`: The full official name of the ETF.
+- \`desc\`: A concise, one-sentence description in Korean.
+- \`pros\`: The main advantages in Korean.
+- \`cons\`: The main disadvantages or risks in Korean.
+- \`yield\`: The most recent annual dividend yield as a decimal (e.g., 0.035 for 3.5%).
+- \`growth\`: The estimated annual price growth rate as a decimal (e.g., 0.08 for 8%).
+- \`risk\`: The overall risk level ('낮음', '중립', '높음').
+- \`category\`: The most appropriate investment category.
 
-    const etfInfoSchema = {
-        type: Type.OBJECT,
-        properties: {
-            desc: { type: Type.STRING, description: "ETF에 대한 한 줄 설명 (한국어)" },
-            pros: { type: Type.STRING, description: "ETF의 주요 장점 (한국어)" },
-            cons: { type: Type.STRING, description: "ETF의 주요 단점 또는 유의사항 (한국어)" },
-            yield: { type: Type.NUMBER, description: "예상 연간 배당률 (소수점 형태, 예: 3.5% -> 0.035)" },
-            growth: { type: Type.NUMBER, description: "예상 연간 성장률 (소수점 형태, 예: 8% -> 0.08)" },
-            risk: { type: Type.STRING, enum: ['낮음', '중립', '높음'], description: "종합 위험도" },
-            category: { type: Type.STRING, description: "ETF 카테고리" },
-        },
-        required: ['desc', 'pros', 'cons', 'yield', 'growth', 'risk', 'category']
-    };
+Example output format: {"ticker":"069500","name":"KODEX 200",...}`;
 
     try {
-        // Fix: Call generateContent with model, contents, and config object.
         const response = await ai.models.generateContent({
             model: MODEL_NAME,
             contents: prompt,
             config: {
-                responseMimeType: "application/json",
-                responseSchema: etfInfoSchema,
+                tools: [{ googleSearch: {} }],
+                temperature: 0.1,
             }
         });
         
-        // Fix: Extract text from response using the .text property
-        const jsonString = response.text;
-        const result = JSON.parse(jsonString);
+        const textResponse = response.text;
+        let result: Partial<Etf>;
 
-        return result as Partial<Etf>;
+        try {
+            const jsonString = textResponse.substring(textResponse.indexOf('{'), textResponse.lastIndexOf('}') + 1);
+            result = JSON.parse(jsonString);
+        } catch (parseError) {
+             console.error("Failed to parse JSON from AI response:", textResponse, parseError);
+             throw new Error("AI가 반환한 정보의 형식이 올바르지 않습니다.");
+        }
+
+        const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        const sources = groundingChunks
+            .map((chunk: any) => chunk.web)
+            .filter((web: any) => web && web.uri)
+            .map((web: any) => ({
+                uri: web.uri,
+                title: web.title || 'Untitled Source',
+            }));
+
+        return { etfInfo: result, sources };
 
     } catch (error) {
         console.error("Error generating ETF info:", error);
-        if (error instanceof Error && error.message.includes('response was blocked')) {
-             throw new Error("AI 응답이 안전 설정에 의해 차단되었습니다.");
+         if (error instanceof Error) {
+            if (error.message.includes('response was blocked')) {
+                throw new Error("AI 응답이 안전 설정에 의해 차단되었습니다.");
+            }
+            throw error;
         }
         throw new Error("AI ETF 정보 생성에 실패했습니다.");
     }
