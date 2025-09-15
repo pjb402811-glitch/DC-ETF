@@ -125,9 +125,15 @@ ${etfsToString(safeAssets)}
 
     } catch (error) {
         console.error("Error generating AI portfolio:", error);
-        if (error instanceof Error && error.message.includes('response was blocked')) {
+        const errorString = String(error).toLowerCase();
+
+        if (errorString.includes('quota exceeded')) {
+            throw new Error("Gemini API 일일 요청 한도를 초과했습니다. 잠시 후 또는 내일 다시 시도해주세요.");
+        }
+        if (errorString.includes('response was blocked')) {
             throw new Error("AI 응답이 안전 설정에 의해 차단되었습니다. 다른 옵션을 시도해보세요.");
         }
+        
         throw new Error("AI 포트폴리오 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
 }
@@ -209,12 +215,15 @@ Example output format: {"ticker":"069500","name":"KODEX 200",...}`;
 
     } catch (error) {
         console.error("Error generating ETF info:", error);
-         if (error instanceof Error) {
-            if (error.message.includes('response was blocked')) {
-                throw new Error("AI 응답이 안전 설정에 의해 차단되었습니다.");
-            }
-            throw error;
+        const errorString = String(error).toLowerCase();
+
+        if (errorString.includes('quota exceeded')) {
+            throw new Error("Gemini API 일일 요청 한도를 초과했습니다. 잠시 후 또는 내일 다시 시도해주세요.");
         }
+        if (errorString.includes('response was blocked')) {
+            throw new Error("AI 응답이 안전 설정에 의해 차단되었습니다.");
+        }
+       
         throw new Error("AI ETF 정보 생성에 실패했습니다.");
     }
 }

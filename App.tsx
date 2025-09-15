@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import type { Etf, PortfolioScenario, RiskProfile, InvestmentTheme, SimulationGoal, SimulationResult, PortfolioMonitorData, EtfVerificationResult } from './types';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import type { Etf, PortfolioScenario, RiskProfile, InvestmentTheme, SimulationGoal, SimulationResult, PortfolioMonitorData } from './types';
 import { ALL_ETFS, runSimulation } from './services/etfService';
-import { generateAiPortfolio, generateEtfInfo } from './services/geminiService';
+import { generateAiPortfolio } from './services/geminiService';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import EtfInfoSection from './components/EtfInfoSection';
+import FearAndGreedIndex from './components/FearAndGreedIndex';
 import SimulatorForm from './components/SimulatorForm';
 import ResultsSection from './components/ResultsSection';
 import MyPortfolioSection from './components/MyPortfolioSection';
@@ -12,7 +13,6 @@ import LoadingOverlay from './components/LoadingOverlay';
 import AlertModal from './components/AlertModal';
 import ApiKeyModal from './components/ApiKeyModal';
 import ConfirmModal from './components/ConfirmModal';
-import VerificationResultModal from './components/VerificationResultModal';
 import Footer from './components/Footer';
 
 type AlertState = {
@@ -35,184 +35,84 @@ const App: React.FC = () => {
     const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
     
     // Data State
-    const [etfData, setEtfData] = useState<Record<string, Etf>>(ALL_ETFS);
-    const [myPortfolios, setMyPortfolios] = useState<PortfolioMonitorData[]>([]);
-
-    // UI State
-    const [isLoading, setIsLoading] = useState(true);
-    const [loadingMessage, setLoadingMessage] = useState('데이터 로딩 중...');
-    const [alertState, setAlertState] = useState<AlertState>(null);
-    const [confirmState, setConfirmState] = useState<ConfirmState>(null);
-    const [verificationResults, setVerificationResults] = useState<EtfVerificationResult[] | null>(null);
-
-    // Simulation State
-    const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([]);
-    const [simulationInputs, setSimulationInputs] = useState<{
-        currentAge: number; investmentPeriod: number; initialPrincipal: number;
-    } | null>(null);
-    
-    // Load data from localStorage on initial render
-    useEffect(() => {
+    const [etfData, setEtfData] = useState<Record<string, Etf>>(() => {
         try {
-            const savedApiKey = localStorage.getItem('geminiApiKey');
-            if (savedApiKey) {
-                setApiKey(savedApiKey);
-            }
-
-            const savedEtfs = localStorage.getItem('etfData');
-            if (savedEtfs) setEtfData(JSON.parse(savedEtfs));
-            
-            const savedPortfolios = localStorage.getItem('myPortfolios');
-            if (savedPortfolios) setMyPortfolios(JSON.parse(savedPortfolios));
-
-            const hasVisited = localStorage.getItem('hasVisited');
-            if (!hasVisited) {
-                if (!savedApiKey) {
-                    setIsApiKeyModalOpen(true);
-                }
-                localStorage.setItem('hasVisited', 'true');
-            }
+            const savedEtfs = localStorage.getItem('custom-etf-data');
+            return savedEtfs ? JSON.parse(savedEtfs) : ALL_ETFS;
         } catch (error) {
-            console.error("Failed to load data from localStorage", error);
-            showAlert('로딩 오류', '저장된 데이터를 불러오는 데 실패했습니다.');
-        } finally {
-            setIsLoading(false);
+            console.error("Failed to load ETFs from localStorage", error);
+            return ALL_ETFS;
         }
-    }, []);
-
-    const saveData = useCallback((key: string, data: any) => {
-        try {
-            localStorage.setItem(key, JSON.stringify(data));
-        } catch (error) {
-            console.error(`Failed to save data to localStorage (key: ${key})`, error);
-            showAlert('저장 오류', '데이터를 로컬에 저장하는 데 실패했습니다.');
-        }
-    }, []);
-    
-    const handleSaveApiKey = (newKey: string) => {
-        setApiKey(newKey);
-        saveData('geminiApiKey', newKey);
-        setIsApiKeyModalOpen(false);
-        showAlert('저장 완료', 'API Key가 성공적으로 저장되었습니다.');
-    };
-
-    const handleSaveEtf = (etf: Etf) => {
-        const newEtfData = { ...etfData, [etf.ticker]: etf };
-        setEtfData(newEtfData);
-        saveData('etfData', newEtfData);
-        showAlert('저장 완료', 'ETF 정보가 성공적으로 저장되었습니다.');
-    };
-    
-    const handleDeleteEtf = (ticker: string) => {
-        showConfirm('ETF 삭제', `'${ticker}' ETF를 목록에서 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`, () => {
-            const newEtfData = { ...etfData };
-            delete newEtfData[ticker];
-            setEtfData(newEtfData);
-            saveData('etfData', newEtfData);
-        });
-    };
-    
-    const handleResetEtfs = () => {
-        showConfirm('ETF 목록 초기화', '모든 ETF 정보를 기본값으로 복원하시겠습니까? 사용자 추가/수정 정보가 모두 사라집니다.', () => {
-            setEtfData(ALL_ETFS);
-            saveData('etfData', ALL_ETFS);
-        });
-    };
-
-    const handleVerifyEtfs = async () => {
-        if (!apiKey) {
-            showAlert('API Key 필요', '정보를 확인하려면 API Key가 필요합니다.');
-            setIsApiKeyModalOpen(true);
-            return;
-        }
-
-        const etfs = Object.values(etfData);
-        setLoadingMessage(`ETF 정보 확인 중... (0/${etfs.length})`);
-        setIsLoading(true);
-
-        const results: EtfVerificationResult[] = [];
-
-        for (let i = 0; i < etfs.length; i++) {
-            const etf = etfs[i];
-            setLoadingMessage(`ETF 정보 확인 중... (${i + 1}/${etfs.length})`);
-            
-            try {
-                // Add a delay between requests to avoid hitting rate limits.
-                if (i > 0) {
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
-                }
-
-                const result = await generateEtfInfo(apiKey, etf.ticker, undefined);
-                if (result && result.etfInfo.name) {
-                    const localName = etf.name.trim();
-                    const remoteName = result.etfInfo.name.trim();
-                    
-                    const normalize = (str: string) => str.replace(/^(KODEX|TIGER|ACE|SOL|HANARO|KBSTAR|ARIRANG)\s/i, '').trim().toLowerCase();
-                    
-                    results.push({
-                        ticker: etf.ticker,
-                        localName: etf.name,
-                        remoteName: result.etfInfo.name,
-                        status: normalize(localName) === normalize(remoteName) ? 'match' : 'mismatch',
-                    });
-                } else {
-                    results.push({ ticker: etf.ticker, localName: etf.name, remoteName: null, status: 'error', error: 'AI로부터 유효한 이름을 받지 못했습니다.' });
-                }
-            } catch (e) {
-                console.error(`Failed to verify ETF ${etf.ticker}:`, e);
-                results.push({ ticker: etf.ticker, localName: etf.name, remoteName: null, status: 'error', error: e instanceof Error ? e.message : '알 수 없는 오류' });
-            }
-        }
-        
-        setVerificationResults(results);
-        setIsLoading(false);
-    };
-
-    const handleUpdateMismatchedEtfs = (resultsToUpdate: EtfVerificationResult[]) => {
-        if (resultsToUpdate.length === 0) return;
-
-        showConfirm(
-            'ETF 정보 최신화',
-            `${resultsToUpdate.length}개의 불일치 항목을 AI가 검색한 최신 정보로 업데이트하시겠습니까?`,
-            () => {
-                const newEtfData = { ...etfData };
-                let updatedCount = 0;
-                resultsToUpdate.forEach(result => {
-                    if (result.ticker in newEtfData && result.remoteName) {
-                        newEtfData[result.ticker].name = result.remoteName;
-                        updatedCount++;
-                    }
-                });
-        
-                if (updatedCount > 0) {
-                    setEtfData(newEtfData);
-                    saveData('etfData', newEtfData);
-                    showAlert('최신화 완료', `${updatedCount}개의 ETF 정보가 성공적으로 업데이트되었습니다.`);
-                }
-                
-                setVerificationResults(null);
-            }
-        );
-    };
-
-    const categories = [...new Set(Object.values(etfData).map(etf => etf.category))].sort((a, b) => {
-        const order = ['국내 주식', '해외 주식', '배당주', '커버드콜', '섹터', '테마', '부동산/인프라', '국내 채권', '해외 채권', '자산배분(TDF/TRF)', '단기 금융'];
-        const indexA = order.indexOf(a);
-        const indexB = order.indexOf(b);
-        if (indexA === -1) return 1;
-        if (indexB === -1) return -1;
-        return indexA - indexB;
     });
 
-    const showAlert = (title: string, message: string) => {
-        setAlertState({ isVisible: true, title, message });
+    const [myPortfolios, setMyPortfolios] = useState<PortfolioMonitorData[]>(() => {
+        try {
+            const saved = localStorage.getItem('my-portfolios-data');
+            return saved ? JSON.parse(saved) : [];
+        } catch (error) {
+            console.error("Failed to load portfolios from localStorage", error);
+            return [];
+        }
+    });
+
+    // UI/Flow State
+    const [loading, setLoading] = useState({ isVisible: false, message: '처리 중...' });
+    const [alert, setAlert] = useState<AlertState>(null);
+    const [confirm, setConfirm] = useState<ConfirmState>(null);
+    const [simulationResults, setSimulationResults] = useState<SimulationResult[] | null>(null);
+    const [simulationInputs, setSimulationInputs] = useState<{ currentAge: number; investmentPeriod: number; initialPrincipal: number; } | null>(null);
+
+    // Derived data
+    const categories = useMemo(() => [...new Set(Object.values(etfData).map(etf => etf.category))].sort(), [etfData]);
+
+    // API Key persistence
+    useEffect(() => {
+        const savedApiKey = localStorage.getItem('gemini-api-key');
+        if (savedApiKey) {
+            setApiKey(savedApiKey);
+        } else {
+            setIsApiKeyModalOpen(true);
+        }
+    }, []);
+
+    const handleApiKeySave = (newApiKey: string) => {
+        setApiKey(newApiKey);
+        localStorage.setItem('gemini-api-key', newApiKey);
+        setIsApiKeyModalOpen(false);
+        showAlert('API Key 저장 완료', 'API Key가 브라우저에 안전하게 저장되었습니다.');
     };
 
-    const showConfirm = (title: string, message: string, onConfirm: () => void) => {
-        setConfirmState({ isVisible: true, title, message, onConfirm });
+    // Data persistence
+    useEffect(() => {
+        try {
+            localStorage.setItem('my-portfolios-data', JSON.stringify(myPortfolios));
+        } catch (error) {
+            console.error("Failed to save portfolios to localStorage", error);
+        }
+    }, [myPortfolios]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('custom-etf-data', JSON.stringify(etfData));
+        } catch (error) {
+            console.error("Failed to save ETFs to localStorage", error);
+        }
+    }, [etfData]);
+
+    // Alert and Confirm modal handlers
+    const showAlert = (title: string, message: string) => {
+        setAlert({ isVisible: true, title, message });
     };
-    
-    const handleSimulationSubmit = async (
+
+    const closeAlert = () => setAlert(null);
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+        setConfirm({ isVisible: true, title, message, onConfirm });
+    };
+
+    const closeConfirm = () => setConfirm(null);
+
+    const handleSimulatorSubmit = useCallback(async (
         goal: SimulationGoal,
         initialPrincipal: number,
         currentAge: number,
@@ -221,209 +121,251 @@ const App: React.FC = () => {
         investmentTheme: InvestmentTheme,
         inflationRate: number
     ) => {
-        const currentApiKey = apiKey;
-        if (!currentApiKey) {
-            showAlert('API Key 필요', '시뮬레이션을 위해 API Key를 먼저 설정해주세요. 우측 상단 설정 아이콘을 클릭하여 입력할 수 있습니다.');
+        if (!apiKey) {
+            showAlert('API Key 필요', '시뮬레이션을 실행하려면 API Key를 설정해야 합니다.');
             setIsApiKeyModalOpen(true);
             return;
         }
 
-        setLoadingMessage('AI가 최적의 포트폴리오를 구성 중입니다...');
-        setIsLoading(true);
-        setSimulationResults([]);
-        
+        setLoading({ isVisible: true, message: 'AI가 포트폴리오를 구성 중입니다...' });
+        setSimulationResults(null);
+        setSimulationInputs(null);
+
         try {
-            const primaryScenario = await generateAiPortfolio(currentApiKey, riskProfile, investmentTheme, Object.values(etfData));
-            if (!primaryScenario) throw new Error("AI 포트폴리오 생성에 실패했습니다.");
+            // Generate multiple portfolios for comparison
+            const portfolioPromises = [
+                generateAiPortfolio(apiKey, riskProfile, investmentTheme, Object.values(etfData)),
+                // Generate a slightly different one for comparison
+                generateAiPortfolio(apiKey, riskProfile, investmentTheme === 'ai-recommended' ? 'balanced-growth' : 'ai-recommended', Object.values(etfData))
+            ];
+
+            const portfolios = (await Promise.all(portfolioPromises)).filter(p => p !== null) as PortfolioScenario[];
             
-            const alternativeThemes: InvestmentTheme[] = (['stable-income', 'balanced-growth', 'max-growth-70'] as const).filter(t => t !== investmentTheme);
-            const alternativeScenariosPromises = alternativeThemes.slice(0, 2).map(theme =>
-                generateAiPortfolio(currentApiKey, riskProfile, theme, Object.values(etfData))
-            );
-            const alternativeScenariosResults = await Promise.all(alternativeScenariosPromises);
+            if (portfolios.length === 0) {
+                throw new Error("AI가 유효한 포트폴리오를 생성하지 못했습니다.");
+            }
+
+            setLoading({ isVisible: true, message: '시뮬레이션 계산 중...' });
             
-            const allScenarios = [primaryScenario, ...alternativeScenariosResults.filter(Boolean) as PortfolioScenario[]];
-            
-            setLoadingMessage('시뮬레이션 결과를 계산 중입니다...');
-            
-            const results: SimulationResult[] = allScenarios.map(scenario => {
-                 const simResult = runSimulation(scenario, etfData, goal, initialPrincipal, investmentPeriod, inflationRate/100);
-                 const inflationAdjustment = Math.pow(1 + inflationRate / 100, investmentPeriod);
-                 const inflationAdjustedTargetAssets = simResult.targetAssets / inflationAdjustment;
-                 const finalMonthlyDividend = simResult.dividendGrowth[simResult.dividendGrowth.length - 1];
-                 const inflationAdjustedMonthlyDividend = finalMonthlyDividend / inflationAdjustment;
-                 
-                 return {
-                     scenario,
-                     ...simResult,
-                     inflationAdjustedTargetAssets,
-                     inflationAdjustedMonthlyDividend,
-                 };
-            });
+            const results: SimulationResult[] = portfolios.map(scenario => {
+                const simCore = runSimulation(scenario, etfData, goal, initialPrincipal, investmentPeriod, inflationRate / 100);
+                
+                const inflationAdjustment = Math.pow(1 + (inflationRate / 100), investmentPeriod);
+                const inflationAdjustedTargetAssets = simCore.targetAssets / inflationAdjustment;
+                const finalMonthlyDividend = simCore.dividendGrowth[simCore.dividendGrowth.length - 1];
+                const inflationAdjustedMonthlyDividend = finalMonthlyDividend / inflationAdjustment;
+
+                return {
+                    ...simCore,
+                    scenario,
+                    inflationAdjustedTargetAssets,
+                    inflationAdjustedMonthlyDividend,
+                };
+            }).filter((r): r is SimulationResult => r !== null);
             
             setSimulationResults(results);
             setSimulationInputs({ currentAge, investmentPeriod, initialPrincipal });
-            
+
         } catch (error) {
-            console.error("Simulation failed:", error);
-            showAlert('시뮬레이션 오류', error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
+            const errorMessage = error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.";
+            showAlert('시뮬레이션 실패', errorMessage);
         } finally {
-            setIsLoading(false);
+            setLoading({ isVisible: false, message: '' });
         }
-    };
-    
+    }, [apiKey, etfData]);
+
     const handleResetSimulation = () => {
-        setSimulationResults([]);
+        setSimulationResults(null);
         setSimulationInputs(null);
     };
 
     const handleSelectPortfolio = (result: SimulationResult) => {
-        const { scenario, monthlyInvestment, targetAssets, inflationAdjustedTargetAssets, periodYears, dividendGrowth, inflationAdjustedMonthlyDividend } = result;
-        const startAge = simulationInputs?.currentAge;
-        const currentYear = new Date().getFullYear();
-
         const newPortfolio: PortfolioMonitorData = {
             id: `portfolio-${Date.now()}`,
-            portfolio: scenario,
-            childName: '나의 퇴직연금',
-            targetMonthlyInvestment: monthlyInvestment,
+            portfolio: result.scenario,
+            childName: `나의 퇴직연금 - ${result.scenario.name}`,
+            targetMonthlyInvestment: result.monthlyInvestment,
             currentTotalValue: simulationInputs?.initialPrincipal || 0,
             monthlyDividendReceived: 0,
             yearlyAdjustments: {},
-            currentTrackingYear: currentYear,
+            currentTrackingYear: new Date().getFullYear(),
             trackingHistory: {
-                [currentYear]: Array(12).fill(null).map((_, i) => ({
+                [new Date().getFullYear()]: Array.from({ length: 12 }, (_, i) => ({
                     month: i + 1,
-                    investments: Object.keys(scenario.weights).reduce((acc, ticker) => ({ ...acc, [ticker]: 0 }), {}),
+                    investments: Object.keys(result.scenario.weights).reduce((acc, ticker) => ({ ...acc, [ticker]: 0 }), {})
                 }))
             },
             simulationProjection: {
-                periodYears,
-                targetAssets,
-                finalMonthlyDividend: dividendGrowth[dividendGrowth.length - 1],
-                inflationAdjustedTargetAssets,
-                inflationAdjustedMonthlyDividend,
-                startAge,
+                periodYears: result.periodYears,
+                targetAssets: result.targetAssets,
+                finalMonthlyDividend: result.dividendGrowth[result.dividendGrowth.length - 1],
+                inflationAdjustedTargetAssets: result.inflationAdjustedTargetAssets,
+                inflationAdjustedMonthlyDividend: result.inflationAdjustedMonthlyDividend,
+                startAge: simulationInputs?.currentAge,
             }
         };
 
-        const updatedPortfolios = [...myPortfolios, newPortfolio];
-        setMyPortfolios(updatedPortfolios);
-        saveData('myPortfolios', updatedPortfolios);
+        setMyPortfolios(prev => [...prev, newPortfolio]);
+        showAlert('포트폴리오 추가됨', `'${newPortfolio.childName}' 포트폴리오가 '포트폴리오 관리' 탭에 추가되었습니다.`);
         setActiveTab('tracker');
-        showAlert('포트폴리오 추가 완료', `'${scenario.name}' 포트폴리오가 '포트폴리오 관리' 탭에 추가되었습니다.`);
-        handleResetSimulation();
     };
     
-    const handleUpdatePortfolio = (updatedData: PortfolioMonitorData) => {
-        const newPortfolios = myPortfolios.map(p => p.id === updatedData.id ? updatedData : p);
-        setMyPortfolios(newPortfolios);
-        saveData('myPortfolios', newPortfolios);
+    const handleUpdatePortfolio = (updatedPortfolio: PortfolioMonitorData) => {
+        setMyPortfolios(prev => prev.map(p => p.id === updatedPortfolio.id ? updatedPortfolio : p));
+        showAlert('업데이트 완료', `'${updatedPortfolio.childName}' 포트폴리오 정보가 저장되었습니다.`);
     };
 
     const handleClonePortfolio = (portfolioId: string) => {
         const portfolioToClone = myPortfolios.find(p => p.id === portfolioId);
         if (portfolioToClone) {
-            const clonedPortfolio = JSON.parse(JSON.stringify(portfolioToClone));
-            clonedPortfolio.id = `portfolio-${Date.now()}`;
-            clonedPortfolio.childName = `${clonedPortfolio.childName} (복사본)`;
-            const updatedPortfolios = [...myPortfolios, clonedPortfolio];
-            setMyPortfolios(updatedPortfolios);
-            saveData('myPortfolios', updatedPortfolios);
+            const clonedPortfolio = {
+                ...JSON.parse(JSON.stringify(portfolioToClone)),
+                id: `portfolio-${Date.now()}`,
+                childName: `${portfolioToClone.childName} (복사본)`
+            };
+            setMyPortfolios(prev => [...prev, clonedPortfolio]);
             showAlert('복제 완료', '포트폴리오가 복제되었습니다.');
         }
     };
     
     const handleDeletePortfolio = (portfolioId: string) => {
-        showConfirm('포트폴리오 삭제', '이 포트폴리오를 정말로 삭제하시겠습니까? 모든 추적 데이터가 사라지며, 되돌릴 수 없습니다.', () => {
-            const newPortfolios = myPortfolios.filter(p => p.id !== portfolioId);
-            setMyPortfolios(newPortfolios);
-            saveData('myPortfolios', newPortfolios);
-        });
+        const portfolio = myPortfolios.find(p => p.id === portfolioId);
+        if (portfolio) {
+            showConfirm(
+                '포트폴리오 삭제',
+                `'${portfolio.childName}' 포트폴리오를 정말로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
+                () => {
+                    setMyPortfolios(prev => prev.filter(p => p.id !== portfolioId));
+                    closeConfirm();
+                    showAlert('삭제 완료', '포트폴리오가 삭제되었습니다.');
+                }
+            );
+        }
     };
-    
+
     const handleResetAllPortfolios = () => {
-        showConfirm('전체 초기화', '모든 포트폴리오 데이터를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.', () => {
-            setMyPortfolios([]);
-            saveData('myPortfolios', []);
-        });
+        showConfirm(
+            '전체 초기화',
+            '모든 포트폴리오 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.',
+            () => {
+                setMyPortfolios([]);
+                closeConfirm();
+                showAlert('초기화 완료', '모든 포트폴리오 데이터가 삭제되었습니다.');
+            }
+        );
     };
-    
-    const handleExportData = () => {
-        const dataToExport = {
-            etfData,
-            myPortfolios,
-        };
-        const dataStr = JSON.stringify(dataToExport, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `janyebuja_plan_backup_${new Date().toISOString().slice(0,10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showAlert('내보내기 완료', '데이터가 JSON 파일로 다운로드되었습니다.');
+
+    const handleExportPortfolios = () => {
+        try {
+            const dataStr = JSON.stringify({ portfolios: myPortfolios, etfs: etfData }, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+            const exportFileDefaultName = `dc_planner_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+            showAlert('내보내기 성공', '데이터가 JSON 파일로 다운로드되었습니다.');
+        } catch (error) {
+            showAlert('내보내기 실패', '데이터를 내보내는 중 오류가 발생했습니다.');
+            console.error(error);
+        }
     };
-    
-    const handleImportData = (file: File) => {
+
+    const handleImportPortfolios = (file: File) => {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
                 const text = e.target?.result;
-                if (typeof text === 'string') {
-                    const importedData = JSON.parse(text);
-                    if (importedData.etfData && importedData.myPortfolios) {
-                         showConfirm('데이터 가져오기', '현재 데이터를 덮어쓰고 가져온 데이터로 교체하시겠습니까?', () => {
-                            setEtfData(importedData.etfData);
-                            setMyPortfolios(importedData.myPortfolios);
-                            saveData('etfData', importedData.etfData);
-                            saveData('myPortfolios', importedData.myPortfolios);
-                            showAlert('가져오기 성공', '데이터를 성공적으로 가져왔습니다.');
-                        });
-                    } else {
-                        throw new Error("Invalid file format");
-                    }
+                if (typeof text !== 'string') throw new Error("File content is not valid text.");
+                
+                const data = JSON.parse(text);
+                
+                if (data.portfolios && Array.isArray(data.portfolios) && data.etfs && typeof data.etfs === 'object') {
+                    showConfirm(
+                        '데이터 가져오기',
+                        `파일에서 ${data.portfolios.length}개의 포트폴리오와 ${Object.keys(data.etfs).length}개의 ETF 데이터를 찾았습니다.\n기존 데이터를 덮어쓰시겠습니까?`,
+                        () => {
+                            setMyPortfolios(data.portfolios);
+                            setEtfData(data.etfs);
+                            closeConfirm();
+                            showAlert('가져오기 성공', '데이터를 성공적으로 불러왔습니다.');
+                            setActiveTab('tracker');
+                        }
+                    );
+                } else {
+                    throw new Error("Invalid JSON format. Expected 'portfolios' and 'etfs' keys.");
                 }
             } catch (error) {
-                console.error("Failed to import data:", error);
-                showAlert('가져오기 실패', '파일을 읽거나 분석하는 데 실패했습니다. 유효한 백업 파일인지 확인해주세요.');
+                const msg = error instanceof Error ? error.message : "알 수 없는 오류입니다.";
+                showAlert('가져오기 실패', `파일을 읽는 중 오류가 발생했습니다: ${msg}`);
             }
         };
         reader.readAsText(file);
     };
 
+    const handleSaveEtf = (etf: Etf) => {
+        setEtfData(prev => ({
+            ...prev,
+            [etf.ticker]: etf,
+        }));
+        showAlert('ETF 저장됨', `'${etf.name}' 정보가 저장되었습니다.`);
+    };
+
+    const handleDeleteEtf = (ticker: string) => {
+        const etf = etfData[ticker];
+        const isUsed = myPortfolios.some(p => Object.keys(p.portfolio.weights).includes(ticker));
+        
+        if (isUsed) {
+            showAlert('삭제 불가', `'${etf.name}' ETF는 현재 사용 중인 포트폴리오가 있어 삭제할 수 없습니다.`);
+            return;
+        }
+
+        showConfirm(
+            'ETF 삭제',
+            `'${etf.name}' (${ticker}) ETF를 목록에서 삭제하시겠습니까?`,
+            () => {
+                const newEtfData = { ...etfData };
+                delete newEtfData[ticker];
+                setEtfData(newEtfData);
+                closeConfirm();
+                showAlert('삭제 완료', 'ETF가 목록에서 삭제되었습니다.');
+            }
+        );
+    };
+
+    const handleResetEtfs = () => {
+        showConfirm(
+            '기본값 복원',
+            'ETF 목록을 기본값으로 복원하시겠습니까? 추가/수정한 모든 정보가 사라집니다.',
+            () => {
+                setEtfData(ALL_ETFS);
+                closeConfirm();
+                showAlert('복원 완료', 'ETF 목록이 기본값으로 복원되었습니다.');
+            }
+        );
+    };
+
     return (
-        <div className="bg-gray-900 text-white min-h-screen">
-            <LoadingOverlay isVisible={isLoading} message={loadingMessage} />
-            {alertState && <AlertModal {...alertState} onClose={() => setAlertState(null)} />}
-            {confirmState && <ConfirmModal {...confirmState} onClose={() => setConfirmState(null)} onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }} />}
-            <ApiKeyModal isOpen={isApiKeyModalOpen} onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />
-            <VerificationResultModal 
-                isOpen={!!verificationResults} 
-                results={verificationResults || []} 
-                onClose={() => setVerificationResults(null)}
-                onUpdateMismatches={handleUpdateMismatchedEtfs}
-            />
-
-
-            <main className="container mx-auto px-4 py-8">
+        <div className="bg-gray-900 text-white min-h-screen font-sans">
+            <main className="container mx-auto p-4 md:p-8">
                 <Header onSettingsClick={() => setIsApiKeyModalOpen(true)} />
                 <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
-                
+
                 {activeTab === 'simulator' && (
                     <>
-                        <EtfInfoSection 
+                        <EtfInfoSection
                             etfData={etfData}
                             categories={categories}
                             apiKey={apiKey}
                             onSaveEtf={handleSaveEtf}
                             onDeleteEtf={handleDeleteEtf}
                             onResetEtfs={handleResetEtfs}
-                            onVerifyEtfs={handleVerifyEtfs}
                         />
-                        <SimulatorForm onSubmit={handleSimulationSubmit} />
-                        {simulationResults.length > 0 && simulationInputs && (
-                           <ResultsSection
+                        <FearAndGreedIndex />
+                        <SimulatorForm onSubmit={handleSimulatorSubmit} />
+                        {simulationResults && simulationInputs && (
+                            <ResultsSection
                                 results={simulationResults}
                                 inputs={simulationInputs}
                                 onSelectPortfolio={handleSelectPortfolio}
@@ -443,11 +385,39 @@ const App: React.FC = () => {
                         onClone={handleClonePortfolio}
                         onDelete={handleDeletePortfolio}
                         onResetAll={handleResetAllPortfolios}
-                        onExport={handleExportData}
-                        onImport={handleImportData}
+                        onExport={handleExportPortfolios}
+                        onImport={handleImportPortfolios}
                     />
                 )}
+
                 <Footer />
+
+                <LoadingOverlay isVisible={loading.isVisible} message={loading.message} />
+                
+                {alert && (
+                    <AlertModal
+                        isVisible={alert.isVisible}
+                        title={alert.title}
+                        message={alert.message}
+                        onClose={closeAlert}
+                    />
+                )}
+                
+                {confirm && (
+                    <ConfirmModal
+                        isVisible={confirm.isVisible}
+                        title={confirm.title}
+                        message={confirm.message}
+                        onConfirm={confirm.onConfirm}
+                        onClose={closeConfirm}
+                    />
+                )}
+                
+                <ApiKeyModal
+                    isOpen={isApiKeyModalOpen}
+                    onClose={() => setIsApiKeyModalOpen(false)}
+                    onSave={handleApiKeySave}
+                />
             </main>
         </div>
     );

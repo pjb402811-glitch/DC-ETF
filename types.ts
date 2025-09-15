@@ -11,6 +11,15 @@ export interface Etf {
     category: string;
 }
 
+// Fix: Add EtfVerificationResult type definition.
+export interface EtfVerificationResult {
+    ticker: string;
+    localName: string;
+    remoteName?: string;
+    status: 'match' | 'mismatch' | 'error';
+    error?: string;
+}
+
 export type RiskProfile = 
     | 'conservative' 
     | 'balanced' 
@@ -80,12 +89,4 @@ export interface PortfolioMonitorData {
         [year: number]: MonthlyEntry[];
     };
     simulationProjection?: SimulationProjection;
-}
-
-export interface EtfVerificationResult {
-  ticker: string;
-  localName: string;
-  remoteName: string | null;
-  status: 'match' | 'mismatch' | 'error';
-  error?: string;
 }
