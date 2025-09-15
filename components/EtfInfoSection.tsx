@@ -4,6 +4,7 @@ import EtfCard from './EtfCard';
 import CompactEtfCard from './CompactEtfCard';
 import EtfDetailModal from './EtfDetailModal';
 import EtfEditModal from './EtfEditModal';
+import { categoryStyleMap } from '../constants';
 
 interface EtfInfoSectionProps {
     etfData: Record<string, Etf>;
@@ -45,7 +46,7 @@ const EtfInfoSection: React.FC<EtfInfoSectionProps> = ({ etfData, categories, ap
         <section className="mb-12">
             <div className="flex flex-wrap justify-between items-center gap-4 mb-6 border-b-2 border-cyan-400/30 pb-2">
                 <h2 className="text-2xl font-semibold text-cyan-400">
-                    퇴직연금 DC 투자 가능 <span className="text-amber-400">ETF Pool</span>
+                    퇴직연금 DC- <span className="text-amber-400">ETF Pool</span>
                 </h2>
                 <div className="flex items-center gap-2">
                      <button
@@ -86,16 +87,31 @@ const EtfInfoSection: React.FC<EtfInfoSectionProps> = ({ etfData, categories, ap
             )}
 
             <div className="flex flex-wrap gap-2 mb-6">
-                {allCategories.map(category => (
-                    <button
-                        key={category}
-                        onClick={() => setActiveCategory(category)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 
-                            ${activeCategory === category ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
-                    >
-                        {category}
-                    </button>
-                ))}
+                {allCategories.map(category => {
+                    const styles = categoryStyleMap[category];
+                    const isAllCategory = category === '전체';
+                    
+                    const activeClass = isAllCategory 
+                        ? 'bg-cyan-600 text-white' 
+                        : styles?.active || 'bg-gray-600 text-white';
+                        
+                    const inactiveClass = isAllCategory 
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                        : styles?.inactive || 'text-gray-400 border-2 border-gray-500 hover:bg-gray-500 hover:text-white';
+                        
+                    const isBordered = !isAllCategory && activeCategory !== category;
+                    const paddingClass = isBordered ? 'py-1.5' : 'py-2';
+
+                    return (
+                        <button
+                            key={category}
+                            onClick={() => setActiveCategory(category)}
+                            className={`px-4 rounded-full text-sm font-medium transition-colors duration-200 ${paddingClass} ${activeCategory === category ? activeClass : inactiveClass}`}
+                        >
+                            {category}
+                        </button>
+                    );
+                })}
             </div>
             <div className={gridClasses}>
                 {etfsToDisplay.map(etf => 

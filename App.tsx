@@ -13,6 +13,7 @@ import AlertModal from './components/AlertModal';
 import ApiKeyModal from './components/ApiKeyModal';
 import ConfirmModal from './components/ConfirmModal';
 import VerificationResultModal from './components/VerificationResultModal';
+import Footer from './components/Footer';
 
 type AlertState = {
     isVisible: boolean;
@@ -446,6 +447,7 @@ const App: React.FC = () => {
                         onImport={handleImportData}
                     />
                 )}
+                <Footer />
             </main>
         </div>
     );

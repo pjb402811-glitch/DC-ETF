@@ -51,7 +51,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ result, index, isPrimary, onSel
             })
             .join('\n');
 
-        const summaryText = `*퇴직연금 DC플랜 시뮬레이션 결과*
+        const summaryText = `*퇴직연금 DC플래너 시뮬레이션 결과*
 
 ■ 제목: ${result.scenario.name}
 

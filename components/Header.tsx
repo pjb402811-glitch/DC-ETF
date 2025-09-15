@@ -15,10 +15,10 @@ const Header: React.FC<HeaderProps> = ({ onSettingsClick }) => {
     return (
         <header className="text-center mb-10 relative">
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-                퇴직연금 DC플랜
+                퇴직연금 DC플래너
             </h1>
             <p className="text-xl text-blue-300">{currentDate}</p>
-            <p className="text-lg text-blue-400 mt-1">AI와 함께 설계하는 나의 은퇴 로드맵</p>
+            <p className="text-lg text-blue-400 mt-1">당신의 여유있는 은퇴를 응원합니다 -Made by PJB</p>
             <button
                 onClick={onSettingsClick}
                 className="absolute top-0 right-0 p-2 text-gray-400 hover:text-white transition-colors"
