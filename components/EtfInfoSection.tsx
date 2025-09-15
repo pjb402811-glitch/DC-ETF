@@ -12,9 +12,10 @@ interface EtfInfoSectionProps {
     onSaveEtf: (etf: Etf) => void;
     onDeleteEtf: (ticker: string) => void;
     onResetEtfs: () => void;
+    onVerifyEtfs: () => void;
 }
 
-const EtfInfoSection: React.FC<EtfInfoSectionProps> = ({ etfData, categories, apiKey, onSaveEtf, onDeleteEtf, onResetEtfs }) => {
+const EtfInfoSection: React.FC<EtfInfoSectionProps> = ({ etfData, categories, apiKey, onSaveEtf, onDeleteEtf, onResetEtfs, onVerifyEtfs }) => {
     const [activeCategory, setActiveCategory] = useState('전체');
     const [selectedEtf, setSelectedEtf] = useState<Etf | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -47,6 +48,13 @@ const EtfInfoSection: React.FC<EtfInfoSectionProps> = ({ etfData, categories, ap
                     퇴직연금 DC 투자 가능 <span className="text-amber-400">ETF Pool</span>
                 </h2>
                 <div className="flex items-center gap-2">
+                     <button
+                        onClick={onVerifyEtfs}
+                        className="bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold py-2 px-4 rounded-lg transition-colors"
+                        title="모든 ETF 정보를 Google 검색 최신 정보와 비교합니다."
+                    >
+                        정보 최신화 확인
+                    </button>
                     {isEditing && (
                         <button
                             onClick={onResetEtfs}

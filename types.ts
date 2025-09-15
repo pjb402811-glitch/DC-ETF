@@ -81,3 +81,11 @@ export interface PortfolioMonitorData {
     };
     simulationProjection?: SimulationProjection;
 }
+
+export interface EtfVerificationResult {
+  ticker: string;
+  localName: string;
+  remoteName: string | null;
+  status: 'match' | 'mismatch' | 'error';
+  error?: string;
+}

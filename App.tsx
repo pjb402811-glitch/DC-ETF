@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { Etf, PortfolioScenario, RiskProfile, InvestmentTheme, SimulationGoal, SimulationResult, PortfolioMonitorData } from './types';
+import type { Etf, PortfolioScenario, RiskProfile, InvestmentTheme, SimulationGoal, SimulationResult, PortfolioMonitorData, EtfVerificationResult } from './types';
 import { ALL_ETFS, runSimulation } from './services/etfService';
-import { generateAiPortfolio } from './services/geminiService';
+import { generateAiPortfolio, generateEtfInfo } from './services/geminiService';
 import Header from './components/Header';
 import Navigation from './components/Navigation';
 import EtfInfoSection from './components/EtfInfoSection';
@@ -12,6 +12,7 @@ import LoadingOverlay from './components/LoadingOverlay';
 import AlertModal from './components/AlertModal';
 import ApiKeyModal from './components/ApiKeyModal';
 import ConfirmModal from './components/ConfirmModal';
+import VerificationResultModal from './components/VerificationResultModal';
 
 type AlertState = {
     isVisible: boolean;
@@ -41,6 +42,7 @@ const App: React.FC = () => {
     const [loadingMessage, setLoadingMessage] = useState('데이터 로딩 중...');
     const [alertState, setAlertState] = useState<AlertState>(null);
     const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+    const [verificationResults, setVerificationResults] = useState<EtfVerificationResult[] | null>(null);
 
     // Simulation State
     const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([]);
@@ -115,7 +117,83 @@ const App: React.FC = () => {
             saveData('etfData', ALL_ETFS);
         });
     };
-    
+
+    const handleVerifyEtfs = async () => {
+        if (!apiKey) {
+            showAlert('API Key 필요', '정보를 확인하려면 API Key가 필요합니다.');
+            setIsApiKeyModalOpen(true);
+            return;
+        }
+
+        const etfs = Object.values(etfData);
+        setLoadingMessage(`ETF 정보 확인 중... (0/${etfs.length})`);
+        setIsLoading(true);
+
+        const results: EtfVerificationResult[] = [];
+
+        for (let i = 0; i < etfs.length; i++) {
+            const etf = etfs[i];
+            setLoadingMessage(`ETF 정보 확인 중... (${i + 1}/${etfs.length})`);
+            
+            try {
+                // Add a delay between requests to avoid hitting rate limits.
+                if (i > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
+                }
+
+                const result = await generateEtfInfo(apiKey, etf.ticker, undefined);
+                if (result && result.etfInfo.name) {
+                    const localName = etf.name.trim();
+                    const remoteName = result.etfInfo.name.trim();
+                    
+                    const normalize = (str: string) => str.replace(/^(KODEX|TIGER|ACE|SOL|HANARO|KBSTAR|ARIRANG)\s/i, '').trim().toLowerCase();
+                    
+                    results.push({
+                        ticker: etf.ticker,
+                        localName: etf.name,
+                        remoteName: result.etfInfo.name,
+                        status: normalize(localName) === normalize(remoteName) ? 'match' : 'mismatch',
+                    });
+                } else {
+                    results.push({ ticker: etf.ticker, localName: etf.name, remoteName: null, status: 'error', error: 'AI로부터 유효한 이름을 받지 못했습니다.' });
+                }
+            } catch (e) {
+                console.error(`Failed to verify ETF ${etf.ticker}:`, e);
+                results.push({ ticker: etf.ticker, localName: etf.name, remoteName: null, status: 'error', error: e instanceof Error ? e.message : '알 수 없는 오류' });
+            }
+        }
+        
+        setVerificationResults(results);
+        setIsLoading(false);
+    };
+
+    const handleUpdateMismatchedEtfs = (resultsToUpdate: EtfVerificationResult[]) => {
+        if (resultsToUpdate.length === 0) return;
+
+        showConfirm(
+            'ETF 정보 최신화',
+            `${resultsToUpdate.length}개의 불일치 항목을 AI가 검색한 최신 정보로 업데이트하시겠습니까?`,
+            () => {
+                const newEtfData = { ...etfData };
+                let updatedCount = 0;
+                resultsToUpdate.forEach(result => {
+                    if (result.ticker in newEtfData && result.remoteName) {
+                        newEtfData[result.ticker].name = result.remoteName;
+                        updatedCount++;
+                    }
+                });
+        
+                if (updatedCount > 0) {
+                    setEtfData(newEtfData);
+                    saveData('etfData', newEtfData);
+                    showAlert('최신화 완료', `${updatedCount}개의 ETF 정보가 성공적으로 업데이트되었습니다.`);
+                }
+                
+                setVerificationResults(null);
+            }
+        );
+    };
+
     const categories = [...new Set(Object.values(etfData).map(etf => etf.category))].sort((a, b) => {
         const order = ['국내 주식', '해외 주식', '배당주', '커버드콜', '섹터', '테마', '부동산/인프라', '국내 채권', '해외 채권', '자산배분(TDF/TRF)', '단기 금융'];
         const indexA = order.indexOf(a);
@@ -319,6 +397,13 @@ const App: React.FC = () => {
             {alertState && <AlertModal {...alertState} onClose={() => setAlertState(null)} />}
             {confirmState && <ConfirmModal {...confirmState} onClose={() => setConfirmState(null)} onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }} />}
             <ApiKeyModal isOpen={isApiKeyModalOpen} onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} />
+            <VerificationResultModal 
+                isOpen={!!verificationResults} 
+                results={verificationResults || []} 
+                onClose={() => setVerificationResults(null)}
+                onUpdateMismatches={handleUpdateMismatchedEtfs}
+            />
+
 
             <main className="container mx-auto px-4 py-8">
                 <Header onSettingsClick={() => setIsApiKeyModalOpen(true)} />
@@ -333,6 +418,7 @@ const App: React.FC = () => {
                             onSaveEtf={handleSaveEtf}
                             onDeleteEtf={handleDeleteEtf}
                             onResetEtfs={handleResetEtfs}
+                            onVerifyEtfs={handleVerifyEtfs}
                         />
                         <SimulatorForm onSubmit={handleSimulationSubmit} />
                         {simulationResults.length > 0 && simulationInputs && (
