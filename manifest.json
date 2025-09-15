@@ -1,7 +1,7 @@
 {
-  "name": "자녀부자플랜",
-  "short_name": "자녀부자플랜",
-  "description": "An AI-powered simulator to help plan long-term dividend investment strategies for children, featuring portfolio recommendations based on risk profiles and detailed growth projections.",
+  "name": "퇴직연금 DC플래너",
+  "short_name": "퇴직연금 DC플래너",
+  "description": "An AI-powered simulator to help plan for retirement with a Korean DC pension account, featuring portfolio recommendations and growth projections that adhere to investment regulations.",
   "start_url": ".",
   "display": "standalone",
   "orientation": "portrait",
