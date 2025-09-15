@@ -563,7 +563,7 @@ export function runSimulation(
     scenario: PortfolioScenario,
     etfData: Record<string, Etf>,
     goal: SimulationGoal,
-    initialPrincipal: number,
+    initialPrincipal: number, // in KRW
     investmentPeriod: number, // in years
     inflationRate: number
 ): SimulationCoreResult {
@@ -587,23 +587,27 @@ export function runSimulation(
     const monthlyTotalReturnRate = monthlyGrowthRate + monthlyYieldRate;
     
     let monthlyInvestment = 0;
-    const finalTarget = goal.value;
+    const finalTarget = goal.value; // This is in 10,000 KRW (만원) units
 
     if (goal.type === 'asset' || goal.type === 'dividend') {
         let targetFinalAssets = 0;
 
         if (goal.type === 'asset') {
-            targetFinalAssets = finalTarget;
+            // goal.value is target asset in 만원. Convert to 원.
+            targetFinalAssets = finalTarget * 10000;
         } else { // dividend
+            // goal.value is target monthly dividend in 만원. Convert to 원.
+            const targetMonthlyDividend = finalTarget * 10000;
             if (monthlyYieldRate <= 1e-9) {
                  // Cannot achieve dividend goal if there is no yield.
                  // Assume a 1% yield to get a target asset number, this is a fallback.
-                 targetFinalAssets = finalTarget / (0.01 / 12);
+                 targetFinalAssets = targetMonthlyDividend / (0.01 / 12);
             } else {
-                 targetFinalAssets = finalTarget / monthlyYieldRate;
+                 targetFinalAssets = targetMonthlyDividend / monthlyYieldRate;
             }
         }
         
+        // initialPrincipal is already in KRW (원)
         const futureValueOfPrincipal = initialPrincipal * Math.pow(1 + monthlyTotalReturnRate, periodMonths);
         
         let fvFactor;
@@ -622,7 +626,8 @@ export function runSimulation(
         if (monthlyInvestment < 0) monthlyInvestment = 0;
 
     } else { // 'investment'
-        monthlyInvestment = finalTarget;
+        // goal.value is monthly investment in 만원. Convert to 원.
+        monthlyInvestment = finalTarget * 10000;
     }
     
     const assetGrowth: number[] = [initialPrincipal];
