@@ -65,7 +65,9 @@ const ControlPanel: React.FC<{
     onStockChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     cryptoValue: number | null;
     onCryptoChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}> = ({ stockValue, onStockChange, cryptoValue, onCryptoChange }) => (
+    onSave: () => void;
+    saveMessage: string;
+}> = ({ stockValue, onStockChange, cryptoValue, onCryptoChange, onSave, saveMessage }) => (
     <div className="bg-gray-900/50 px-4 py-3 rounded-lg space-y-3 w-full h-full flex flex-col justify-center">
         <h4 className="text-lg font-semibold text-white text-center border-b border-gray-700 pb-2">지수 확인 및 수정</h4>
         
@@ -107,6 +109,19 @@ const ControlPanel: React.FC<{
                 placeholder="Loading..."
             />
         </div>
+
+        <div className="pt-2">
+            <button
+                onClick={onSave}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg transition-colors"
+                aria-label="수정된 지수 값 저장"
+            >
+                수정값 저장
+            </button>
+            <div className="h-5 mt-2 text-center">
+                {saveMessage && <p className="text-green-400 text-sm">{saveMessage}</p>}
+            </div>
+        </div>
     </div>
 );
 
@@ -114,6 +129,49 @@ const ControlPanel: React.FC<{
 const FearAndGreedIndex: React.FC = () => {
     const [stockIndexValue, setStockIndexValue] = useState<number>(52);
     const [cryptoIndexValue, setCryptoIndexValue] = useState<number | null>(null);
+    const [saveMessage, setSaveMessage] = useState<string>('');
+
+    useEffect(() => {
+        // Load stock value from storage or use default
+        const savedStock = localStorage.getItem('fearAndGreedStock');
+        setStockIndexValue(savedStock ? parseInt(savedStock, 10) : 52);
+
+        // Try to load crypto value from storage first
+        const savedCrypto = localStorage.getItem('fearAndGreedCrypto');
+        if (savedCrypto) {
+            setCryptoIndexValue(parseInt(savedCrypto, 10));
+        } else {
+            // If not in storage, fetch from API
+            const fetchCryptoIndex = async () => {
+                try {
+                    const response = await fetch('https://api.alternative.me/fng/?limit=1');
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    if (result && result.data && result.data.length > 0) {
+                        const fngData: CryptoApiData = result.data[0];
+                        setCryptoIndexValue(parseInt(fngData.value, 10));
+                    } else {
+                        throw new Error("Invalid API response format");
+                    }
+                } catch (e: any) {
+                    console.error(`암호화폐 지수를 가져오는 데 실패했습니다: ${e.message}`);
+                    setCryptoIndexValue(null);
+                }
+            };
+            fetchCryptoIndex();
+        }
+    }, []);
+
+    const handleSave = () => {
+        localStorage.setItem('fearAndGreedStock', String(stockIndexValue));
+        if (cryptoIndexValue !== null) {
+            localStorage.setItem('fearAndGreedCrypto', String(cryptoIndexValue));
+        } else {
+            localStorage.removeItem('fearAndGreedCrypto');
+        }
+        setSaveMessage('저장되었습니다!');
+        setTimeout(() => setSaveMessage(''), 2000);
+    };
 
     const handleStockIndexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(e.target.value, 10);
@@ -132,26 +190,6 @@ const FearAndGreedIndex: React.FC = () => {
             setCryptoIndexValue(0);
         }
     };
-    
-    useEffect(() => {
-        const fetchCryptoIndex = async () => {
-            try {
-                const response = await fetch('https://api.alternative.me/fng/?limit=1');
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const result = await response.json();
-                if (result && result.data && result.data.length > 0) {
-                    const fngData: CryptoApiData = result.data[0];
-                    setCryptoIndexValue(parseInt(fngData.value, 10));
-                } else {
-                    throw new Error("Invalid API response format");
-                }
-            } catch (e: any) {
-                console.error(`암호화폐 지수를 가져오는 데 실패했습니다: ${e.message}`);
-                setCryptoIndexValue(null);
-            }
-        };
-        fetchCryptoIndex();
-    }, []);
 
     return (
         <section className="mb-8 bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg">
@@ -170,6 +208,8 @@ const FearAndGreedIndex: React.FC = () => {
                         onStockChange={handleStockIndexChange}
                         cryptoValue={cryptoIndexValue}
                         onCryptoChange={handleCryptoIndexChange}
+                        onSave={handleSave}
+                        saveMessage={saveMessage}
                     />
                 </div>
             </div>

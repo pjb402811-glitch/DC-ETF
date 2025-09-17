@@ -158,7 +158,7 @@ export async function generateEtfInfo(
 
     const analysisTarget = ticker ? `Ticker: ${ticker}` : `Name: ${name}`;
 
-    const prompt = `You are a financial data analyst. Use Google Search to find the most current and accurate information for a specific Korean ETF. Prioritize official sources like Naver Finance, asset management company websites (e.g., Mirae Asset, Samsung Asset Management), or the Korea Exchange (KRX).
+    const prompt = `You are a financial data analyst. Use Google Search to find the most current and accurate information for a specific Korean ETF. Prioritize information from "https://finance.naver.com/" and "stockanalysis.com". Also consider official sources like asset management company websites (e.g., Mirae Asset, Samsung Asset Management), or the Korea Exchange (KRX).
 
 **ETF to Analyze:**
 - ${analysisTarget}
