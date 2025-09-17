@@ -121,6 +121,18 @@ export const ALL_ETFS: Record<string, Etf> = {
     risk: '중립',
     category: '배당주'
   },
+  '211900': {
+    ticker: '211900',
+    name: 'KODEX 코리아배당성장',
+    desc: '국내의 배당성장 잠재력이 높은 기업들에 투자하여, 안정적인 인컴 수익과 자본 이득을 동시에 추구하는 ETF입니다.',
+    pros: '배당금 재투자를 통해 복리 효과를 극대화할 수 있으며, 장기적으로 안정적인 성과를 기대할 수 있습니다.',
+    cons: '고배당주 ETF에 비해 현재 배당수익률은 낮을 수 있으며, 시장 성장기에는 기술주 중심 ETF보다 성과가 저조할 수 있습니다.',
+    yield: 0.035,
+    growth: 0.06,
+    color: 'red',
+    risk: '중립',
+    category: '배당주'
+  },
   '213610': {
     ticker: '213610',
     name: 'KODEX 삼성그룹밸류',
