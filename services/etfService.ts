@@ -145,6 +145,18 @@ export const ALL_ETFS: Record<string, Etf> = {
     risk: '중립',
     category: '국내 주식'
   },
+    '228810': {
+    ticker: '228810',
+    name: 'TIGER 미디어컨텐츠',
+    desc: '국내 미디어 및 콘텐츠 산업(드라마, 영화, 웹툰 등)의 핵심 기업에 투자하여 K-콘텐츠의 글로벌 성장을 추종하는 ETF입니다.',
+    pros: '글로벌 K-콘텐츠 시장 성장 수혜, 한류 열풍 지속.',
+    cons: '흥행 실패 리스크, 높은 제작비 부담, 경쟁 심화.',
+    yield: 0.008,
+    growth: 0.11,
+    color: 'lime',
+    risk: '높음',
+    category: '섹터'
+  },
   '229200': {
     ticker: '229200',
     name: 'KODEX 코스닥150',
@@ -289,6 +301,18 @@ export const ALL_ETFS: Record<string, Etf> = {
     risk: '중립',
     category: '해외 주식'
   },
+  '379810': {
+    ticker: '379810',
+    name: 'KODEX 미국나스닥100',
+    desc: '미국 나스닥 시장을 대표하는 100개의 비금융 우량 기술주에 분산 투자하여 미국 기술주 시장의 성장을 추종하는 ETF입니다.',
+    pros: '글로벌 혁신을 주도하는 빅테크 기업들에 투자, 높은 장기 성장 잠재력.',
+    cons: '기술주 중심의 높은 변동성, 특정 기업(상위 10개)에 대한 높은 비중, 환율 변동 위험.',
+    yield: 0.005,
+    growth: 0.15,
+    color: 'green',
+    risk: '높음',
+    category: '해외 주식'
+  },
   '381180': {
     ticker: '381180',
     name: 'TIGER 미국필라델피아반도체나스닥',
@@ -372,6 +396,18 @@ export const ALL_ETFS: Record<string, Etf> = {
     color: 'teal',
     risk: '중립',
     category: '자산배분(TDF/TRF)'
+  },
+  '441640': {
+    ticker: '441640',
+    name: 'KODEX 미국배당 커버드콜액티브',
+    desc: '미국 우량 배당주에 투자하면서 커버드콜 전략을 활용하여 높은 월배당을 추구하는 액티브 ETF입니다.',
+    pros: '높은 월배당금, 시장 횡보/하락 시 일부 손실 방어.',
+    cons: '주가 상승 잠재력 제한, 기초자산 대비 낮은 장기 성장률.',
+    yield: 0.085,
+    growth: 0.015,
+    color: 'pink',
+    risk: '중립',
+    category: '커버드콜'
   },
   '445290': {
     ticker: '445290',
@@ -469,18 +505,6 @@ export const ALL_ETFS: Record<string, Etf> = {
     risk: '높음',
     category: '테마'
   },
-  '462330': {
-    ticker: '462330',
-    name: 'KODEX 2차전지산업레버리지',
-    desc: '국내 2차전지 산업 지수의 일일 수익률을 2배로 추종하는 레버리지 ETF입니다.',
-    pros: '2차전지 산업 상승 시 높은 수익을 기대할 수 있음.',
-    cons: '변동성이 매우 높고, 하락 및 횡보장에서 복리 효과로 인한 손실이 커질 수 있는 초고위험 상품.',
-    yield: 0.001,
-    growth: 0.18,
-    color: 'yellow',
-    risk: '높음',
-    category: '테마'
-  },
   '463250': {
     ticker: '463250',
     name: 'TIGER K방산&우주',
@@ -549,6 +573,30 @@ export const ALL_ETFS: Record<string, Etf> = {
     cons: '소수 종목 집중으로 인한 매우 높은 변동성, 특정 기업의 리스크에 크게 노출.',
     yield: 0.003,
     growth: 0.16,
+    color: 'yellow',
+    risk: '높음',
+    category: '테마'
+  },
+    '487230': {
+    ticker: '487230',
+    name: 'KODEX 미국AI전력핵심인프라',
+    desc: 'AI 데이터센터 확장에 필수적인 전력망, 변압기, 유틸리티 등 미국 내 핵심 전력 인프라 기업에 투자하는 ETF입니다.',
+    pros: 'AI 산업 성장의 숨은 수혜주. 안정적인 수요 기반 및 정부의 인프라 투자 정책 수혜 기대.',
+    cons: '특정 산업 집중 리스크. 원자재 가격 및 규제 변화에 민감. 전통 산업으로 폭발적 성장성은 제한될 수 있음.',
+    yield: 0.015,
+    growth: 0.13,
+    color: 'yellow',
+    risk: '높음',
+    category: '테마'
+  },
+  '498270': {
+    ticker: '498270',
+    name: 'KIWOOM 미국양자컴퓨팅',
+    desc: '미국의 양자 컴퓨팅 기술 개발 및 관련 생태계(하드웨어, 소프트웨어)를 주도하는 기업에 투자하는 테마 ETF입니다.',
+    pros: '차세대 기술 혁명을 이끌 양자 컴퓨팅 시장의 초기 성장 단계에 투자. 매우 높은 장기 성장 잠재력.',
+    cons: '기술 상용화까지 긴 시간이 소요될 수 있음. 매우 높은 불확실성과 변동성. 초기 기술 단계로 실적 부재.',
+    yield: 0.001,
+    growth: 0.18,
     color: 'yellow',
     risk: '높음',
     category: '테마'
